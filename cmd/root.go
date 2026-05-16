@@ -26,8 +26,8 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:           "adenV",
-	Short:         "adenVault — a local-first, password-locked safe for developer secrets",
-	Long:          "adenVault is a per-project secrets manager. Encrypted at rest with AES-256-GCM,\nunlocked by your master password (Argon2id-derived), invisible to git, and offline.",
+	Short:         "adenVault — your offline password manager. no cloud. no subscription.",
+	Long:          "adenVault is a personal CLI password manager.\nStore passwords, usernames, and notes — encrypted with AES-256-GCM,\nlocked behind your master password (Argon2id), never leaves your machine.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Version:       Version,
@@ -70,8 +70,9 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&flagQuiet, "quiet", false, "suppress status output")
 
 	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(setCmd)
+	rootCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(getCmd)
+	rootCmd.AddCommand(copyCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(rmCmd)
 	rootCmd.AddCommand(exportCmd)
@@ -149,7 +150,7 @@ func formatError(err error) error {
 	switch {
 	case errors.Is(err, vault.ErrVaultNotFound):
 		return fmt.Errorf("vault not found — run `adenV init` first")
-	case errors.Is(err, vault.ErrKeyNotFound):
+	case errors.Is(err, vault.ErrEntryNotFound):
 		return err
 	case errors.Is(err, ui.ErrPromptAborted):
 		return errors.New("aborted")

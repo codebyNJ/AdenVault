@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -13,33 +14,28 @@ import (
 var runCmd = &cobra.Command{
 	Use:     "run -- <command> [args...]",
 	Aliases: []string{"r", "exec", "x"},
-	Short:   "run a command with secrets injected as environment variables",
-	Long: `Decrypt every secret for the current project + environment, merge
-them with the existing shell environment (aden secrets win on conflict),
-and exec the requested command. The subprocess's exit code is
-forwarded to the shell.
+	Short:   "run a command with vault entries injected as env vars",
+	Long: `Decrypt all entries and inject them as environment variables
+into a subprocess. Each entry becomes LABEL=password in the env.
+Use --with-user to also inject LABEL_USER=username.
 
-No secrets are written to disk during this flow.
-
-Example:
-
-  aden run -- npm start
-  aden --env prod run -- ./deploy.sh`,
+  adenV run -- npm start
+  adenV --env prod run -- ./deploy.sh`,
 	Args:               cobra.MinimumNArgs(1),
 	DisableFlagParsing: false,
 	RunE:               runRun,
 }
 
+var flagRunWithUser bool
+
 func init() {
-	// We don't want cobra to interpret flags meant for the wrapped
-	// command. Users invoke `aden run -- npm start --foo`; cobra
-	// already understands the `--` separator and stops parsing there.
 	runCmd.Flags().SetInterspersed(false)
+	runCmd.Flags().BoolVar(&flagRunWithUser, "with-user", false, "also inject LABEL_USER=username vars")
 }
 
 func runRun(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: aden run -- <command> [args...]")
+		return errors.New("usage: adenV run -- <command> [args...]")
 	}
 
 	v, err := loadVault()
@@ -51,10 +47,13 @@ func runRun(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Build env: start with parent env, then overlay aden secrets.
 	env := os.Environ()
 	for _, e := range entries {
-		env = append(env, fmt.Sprintf("%s=%s", e.Name, e.Value))
+		key := strings.ToUpper(strings.ReplaceAll(e.Label, "-", "_"))
+		env = append(env, fmt.Sprintf("%s=%s", key, e.Password))
+		if flagRunWithUser && e.Username != "" {
+			env = append(env, fmt.Sprintf("%s_USER=%s", key, e.Username))
+		}
 	}
 
 	c := exec.Command(args[0], args[1:]...)
@@ -63,7 +62,6 @@ func runRun(cmd *cobra.Command, args []string) error {
 	c.Stderr = os.Stderr
 	c.Env = env
 
-	// Forward signals so ctrl-c reaches the child cleanly.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh)
 	defer signal.Stop(sigCh)
@@ -88,7 +86,6 @@ func runRun(cmd *cobra.Command, args []string) error {
 
 	waitErr := c.Wait()
 	close(done)
-
 	if waitErr == nil {
 		return nil
 	}

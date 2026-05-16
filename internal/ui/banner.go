@@ -140,8 +140,8 @@ func Splash(info SplashInfo) string {
 	pink := lipgloss.NewStyle().Foreground(ColorPrimary).Bold(true)
 	cyan := lipgloss.NewStyle().Foreground(ColorAccent).Bold(true)
 	b.WriteString("  " + pink.Render("adenVault") + "  " +
-		Muted.Render("· a vault that lives in your home dir, not the cloud") + "\n")
-	b.WriteString("  " + Muted.Render("sealed with AES-256-GCM  ·  ") +
+		Muted.Render("· no cloud. no subscription. no breach.") + "\n")
+	b.WriteString("  " + Muted.Render("passwords stay on your machine  ·  ") +
 		cyan.Render("zero network") +
 		Muted.Render("  ·  one binary") + "\n\n")
 
@@ -149,9 +149,9 @@ func Splash(info SplashInfo) string {
 	if info.Exists {
 		count := strconv.Itoa(info.Count)
 		b.WriteString("  " +
-			Muted.Render("project:") + " " + Key.Render(info.Project) + "   " +
+			Muted.Render("vault:") + " " + Key.Render(info.Project) + "   " +
 			Muted.Render("env:") + " " + Key.Render(info.Env) + "   " +
-			Muted.Render("secrets:") + " " + Key.Render(count) + "\n")
+			Muted.Render("entries:") + " " + Key.Render(count) + "\n")
 	} else {
 		b.WriteString("  " +
 			Muted.Render("no vault here yet — run ") +
@@ -163,11 +163,11 @@ func Splash(info SplashInfo) string {
 	b.WriteString(GradientRule(ruleW) + "\n\n")
 
 	// Help hints (mirrors the screenshot's tip lines).
-	b.WriteString("  " + Muted.Render("type a command — your secrets are one keystroke away") + "\n")
+	b.WriteString("  " + Muted.Render("your passwords are one command away") + "\n")
 	b.WriteString("  " + Key.Render("adenV --help") + Muted.Render("  for the full command list") + "\n")
 	b.WriteString("  " + Key.Render("adenV i") + Muted.Render(" init  ·  ") +
-		Key.Render("adenV s KEY value") + Muted.Render(" set  ·  ") +
-		Key.Render("adenV x -- npm start") + Muted.Render(" run") + "\n")
+		Key.Render("adenV add github") + Muted.Render(" store  ·  ") +
+		Key.Render("adenV cp github") + Muted.Render(" copy") + "\n")
 	return b.String()
 }
 

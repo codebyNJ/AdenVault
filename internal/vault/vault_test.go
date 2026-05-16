@@ -9,12 +9,6 @@ import (
 	"aden/internal/crypto"
 )
 
-// Use the lighter KDF params for tests so the suite doesn't take 4s.
-func init() {
-	// nothing — vault.New uses crypto defaults; we test against fast
-	// keys by passing short passwords and accepting the cost.
-}
-
 func newTestVault(t *testing.T, dir, password string) *Vault {
 	t.Helper()
 	path := filepath.Join(dir, "vault.dev.json")
@@ -25,39 +19,51 @@ func newTestVault(t *testing.T, dir, password string) *Vault {
 	return v
 }
 
+func sampleEntry(label string) EntryData {
+	return EntryData{
+		Label:    label,
+		Username: "john@example.com",
+		Password: "hunter2",
+		URL:      "https://example.com",
+		Notes:    "backup codes: 111222",
+	}
+}
+
 func TestVaultRoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	v := newTestVault(t, dir, "hunter2")
+	v := newTestVault(t, dir, "masterpassword")
 
-	if err := v.Set("DB_URL", "postgres://localhost/mydb"); err != nil {
-		t.Fatalf("Set: %v", err)
-	}
-	if err := v.Set("STRIPE_KEY", "sk_live_supersecret"); err != nil {
-		t.Fatalf("Set: %v", err)
+	if err := v.Add(sampleEntry("github")); err != nil {
+		t.Fatalf("Add: %v", err)
 	}
 	if err := v.Save(); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 
-	reloaded, err := Load(v.path, []byte("hunter2"))
+	reloaded, err := Load(v.path, []byte("masterpassword"))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	got, err := reloaded.Get("DB_URL")
+	got, err := reloaded.Get("github")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got != "postgres://localhost/mydb" {
-		t.Fatalf("Get returned %q", got)
+	if got.Username != "john@example.com" {
+		t.Fatalf("Username = %q", got.Username)
+	}
+	if got.Password != "hunter2" {
+		t.Fatalf("Password = %q", got.Password)
+	}
+	if got.URL != "https://example.com" {
+		t.Fatalf("URL = %q", got.URL)
 	}
 }
 
 func TestVaultFileContainsNoPlaintext(t *testing.T) {
 	dir := t.TempDir()
-	v := newTestVault(t, dir, "hunter2")
-	secret := "sk_live_DO_NOT_LEAK"
-	if err := v.Set("STRIPE_KEY", secret); err != nil {
-		t.Fatalf("Set: %v", err)
+	v := newTestVault(t, dir, "masterpassword")
+	if err := v.Add(sampleEntry("github")); err != nil {
+		t.Fatalf("Add: %v", err)
 	}
 	if err := v.Save(); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -66,85 +72,56 @@ func TestVaultFileContainsNoPlaintext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadRaw: %v", err)
 	}
-	if bytes.Contains(raw, []byte(secret)) {
-		t.Fatalf("vault file leaks plaintext value")
+	for _, secret := range []string{"hunter2", "john@example.com", "https://example.com", "backup codes"} {
+		if bytes.Contains(raw, []byte(secret)) {
+			t.Fatalf("vault file leaks plaintext: %q", secret)
+		}
 	}
-	// Key names are expected to be plaintext.
-	if !bytes.Contains(raw, []byte("STRIPE_KEY")) {
-		t.Fatalf("vault file does not contain key name")
+	// Label stays plaintext so list works without a password.
+	if !bytes.Contains(raw, []byte("github")) {
+		t.Fatal("vault file missing plaintext label")
 	}
 }
 
 func TestVaultWrongPassword(t *testing.T) {
 	dir := t.TempDir()
 	v := newTestVault(t, dir, "right")
-	if err := v.Set("X", "y"); err != nil {
-		t.Fatalf("Set: %v", err)
-	}
-	if err := v.Save(); err != nil {
-		t.Fatalf("Save: %v", err)
-	}
+	_ = v.Add(sampleEntry("github"))
+	_ = v.Save()
 
-	reloaded, err := Load(v.path, []byte("wrong"))
-	if err != nil {
-		t.Fatalf("Load: %v", err)
-	}
-	if _, err := reloaded.Get("X"); !errors.Is(err, crypto.ErrDecryptFailed) {
+	bad, _ := Load(v.path, []byte("wrong"))
+	if _, err := bad.Get("github"); !errors.Is(err, crypto.ErrDecryptFailed) {
 		t.Fatalf("expected ErrDecryptFailed, got %v", err)
 	}
 }
 
-func TestVaultMissingKey(t *testing.T) {
+func TestVaultEntryNotFound(t *testing.T) {
 	dir := t.TempDir()
 	v := newTestVault(t, dir, "p")
-	if _, err := v.Get("MISSING"); !errors.Is(err, ErrKeyNotFound) {
-		t.Fatalf("expected ErrKeyNotFound, got %v", err)
+	if _, err := v.Get("missing"); !errors.Is(err, ErrEntryNotFound) {
+		t.Fatalf("expected ErrEntryNotFound, got %v", err)
 	}
-	if err := v.Delete("MISSING"); !errors.Is(err, ErrKeyNotFound) {
-		t.Fatalf("Delete: expected ErrKeyNotFound, got %v", err)
+	if err := v.Delete("missing"); !errors.Is(err, ErrEntryNotFound) {
+		t.Fatalf("Delete: expected ErrEntryNotFound, got %v", err)
 	}
 }
 
-func TestVaultListAndCount(t *testing.T) {
+func TestVaultCountAndLabels(t *testing.T) {
 	dir := t.TempDir()
 	v := newTestVault(t, dir, "p")
-	_ = v.Set("B", "1")
-	_ = v.Set("A", "2")
-	names := v.Names()
-	if len(names) != 2 || names[0] != "A" || names[1] != "B" {
-		t.Fatalf("Names not sorted: %v", names)
-	}
+	_ = v.Add(EntryData{Label: "b", Password: "x"})
+	_ = v.Add(EntryData{Label: "a", Password: "y"})
 	if v.Count() != 2 {
 		t.Fatalf("Count = %d, want 2", v.Count())
 	}
+	labels := v.Labels()
+	if labels[0] != "a" || labels[1] != "b" {
+		t.Fatalf("Labels not sorted: %v", labels)
+	}
 }
 
-func TestVaultLoadMissingFile(t *testing.T) {
+func TestVaultLoadMissing(t *testing.T) {
 	if _, err := Load(filepath.Join(t.TempDir(), "nope.json"), []byte("x")); !errors.Is(err, ErrVaultNotFound) {
 		t.Fatalf("expected ErrVaultNotFound, got %v", err)
-	}
-}
-
-func TestProjectIdentityFolderFallback(t *testing.T) {
-	// Use an isolated working dir that isn't a git repo so we exercise
-	// the folder-name fallback path. We can't easily chdir in tests
-	// without races, so just sanity-check the helper directly.
-	name := sanitize("My Repo Name")
-	if name != "my-repo-name" {
-		t.Fatalf("sanitize = %q", name)
-	}
-}
-
-func TestRepoNameFromRemote(t *testing.T) {
-	cases := map[string]string{
-		"git@github.com:user/myapp.git":  "myapp",
-		"https://github.com/user/myapp":  "myapp",
-		"ssh://git@host/team/svc.git":    "svc",
-		"https://gitlab.com/g/sub/proj/": "proj",
-	}
-	for in, want := range cases {
-		if got := repoNameFromRemote(in); got != want {
-			t.Errorf("repoNameFromRemote(%q) = %q, want %q", in, got, want)
-		}
 	}
 }

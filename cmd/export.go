@@ -10,16 +10,21 @@ import (
 var exportCmd = &cobra.Command{
 	Use:     "export",
 	Aliases: []string{"e", "dump", "env"},
-	Short:   "print all secrets as KEY=value lines on stdout",
-	Long: `Decrypt every secret in the current project's vault and print
-them as KEY=value lines on stdout — one per secret. Designed to be
-redirected:
+	Short:   "export all entries as LABEL=password lines",
+	Long: `Decrypt every entry and print LABEL=password lines to stdout.
 
-  aden export > .env
+  adenV export > .env
 
-Remember to add .env to your .gitignore.`,
+Note: only the password field is exported per line. For username use
+--with-user to get LABEL_USER=username lines alongside.`,
 	Args: cobra.NoArgs,
 	RunE: runExport,
+}
+
+var flagWithUser bool
+
+func init() {
+	exportCmd.Flags().BoolVar(&flagWithUser, "with-user", false, "also export LABEL_USER=username lines")
 }
 
 func runExport(cmd *cobra.Command, args []string) error {
@@ -33,28 +38,23 @@ func runExport(cmd *cobra.Command, args []string) error {
 	}
 	out := cmd.OutOrStdout()
 	for _, e := range entries {
-		fmt.Fprintf(out, "%s=%s\n", e.Name, shellEscape(e.Value))
+		key := strings.ToUpper(strings.ReplaceAll(e.Label, "-", "_"))
+		fmt.Fprintf(out, "%s=%s\n", key, shellEscape(e.Password))
+		if flagWithUser && e.Username != "" {
+			fmt.Fprintf(out, "%s_USER=%s\n", key, shellEscape(e.Username))
+		}
 	}
 	if !flagQuiet {
-		warn("remember to add .env to your .gitignore before committing")
+		warn("remember to add .env to your .gitignore")
 	}
 	return nil
 }
 
-// shellEscape returns a value safe to use on the right-hand side of a
-// KEY=value line. Values without whitespace, quotes, or shell
-// metacharacters pass through untouched; anything else is wrapped in
-// double quotes with embedded "/$/\/` escaped.
 func shellEscape(v string) string {
 	if !needsQuoting(v) {
 		return v
 	}
-	r := strings.NewReplacer(
-		`\`, `\\`,
-		`"`, `\"`,
-		"`", "\\`",
-		`$`, `\$`,
-	)
+	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`, "`", "\\`", `$`, `\$`)
 	return `"` + r.Replace(v) + `"`
 }
 
@@ -64,11 +64,9 @@ func needsQuoting(v string) bool {
 	}
 	for _, c := range v {
 		switch {
-		case c >= 'a' && c <= 'z',
-			c >= 'A' && c <= 'Z',
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z',
 			c >= '0' && c <= '9',
 			c == '_', c == '-', c == '.', c == '/', c == ':', c == '+':
-			// safe
 		default:
 			return true
 		}

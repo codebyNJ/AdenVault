@@ -12,12 +12,11 @@ import (
 
 var listCmd = &cobra.Command{
 	Use:     "list",
-	Aliases: []string{"ls", "l", "keys"},
-	Short:   "list secret names (no password required)",
-	Long: `List all secret names in the current project's vault.
-
-Names are stored in plaintext so this command never asks for the
-master password — useful for quickly checking what's stored.`,
+	Aliases: []string{"ls", "l", "all"},
+	Short:   "list all entries in the vault (no password required)",
+	Long: `List every entry label in the vault along with its last-updated
+timestamp. Entry labels are stored in plaintext so this command
+never asks for your master password.`,
 	Args: cobra.NoArgs,
 	RunE: runList,
 }
@@ -27,25 +26,30 @@ func runList(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	path := p.VaultPath(flagEnv)
-	v, err := vault.LoadEncrypted(path)
+	v, err := vault.LoadEncrypted(p.VaultPath(flagEnv))
 	if err != nil {
 		return formatError(err)
 	}
 
-	rows := make([]ui.SecretRow, 0, v.Count())
-	for _, e := range v.Metadata() {
-		rows = append(rows, ui.SecretRow{Name: e.Name, UpdatedAt: e.UpdatedAt})
-	}
+	metas := v.Metas()
 
-	out := os.Stderr
 	if flagQuiet {
-		// In --quiet mode, dump plain names only to stdout for scripting.
-		for _, r := range rows {
-			fmt.Fprintln(cmd.OutOrStdout(), r.Name)
+		for _, m := range metas {
+			fmt.Fprintln(cmd.OutOrStdout(), m.Label)
 		}
 		return nil
 	}
-	fmt.Fprintln(out, ui.RenderList(v.Project(), v.Environment(), rows))
+
+	rows := make([]ui.EntryMeta, 0, len(metas))
+	for _, m := range metas {
+		rows = append(rows, ui.EntryMeta{
+			Label:     m.Label,
+			HasUser:   m.HasUser,
+			HasURL:    m.HasURL,
+			HasNotes:  m.HasNotes,
+			UpdatedAt: m.UpdatedAt,
+		})
+	}
+	fmt.Fprintln(os.Stderr, ui.RenderList(v.Project(), v.Environment(), rows))
 	return nil
 }

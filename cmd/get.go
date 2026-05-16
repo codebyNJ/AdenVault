@@ -3,40 +3,56 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 
+	"aden/internal/ui"
 	"aden/internal/vault"
 )
 
-var getCmd = &cobra.Command{
-	Use:     "get <KEY>",
-	Aliases: []string{"g", "show", "cat", "read"},
-	Short:   "print a decrypted secret to stdout",
-	Long: `Print a decrypted secret value to stdout.
+var flagShow bool
 
-Output is the raw value only — no labels, no colours — so it is
-safe to use in subshells: aden get DB_URL | psql, $(aden get TOKEN), etc.`,
+var getCmd = &cobra.Command{
+	Use:     "get <label>",
+	Aliases: []string{"g", "show", "view", "open"},
+	Short:   "view an entry from the vault",
+	Long: `Decrypt and display one entry from the vault.
+
+The password is masked by default. Use --show to reveal it:
+
+  adenV get github --show
+
+To copy the password to your clipboard without displaying it, use:
+
+  adenV copy github`,
 	Args: cobra.ExactArgs(1),
 	RunE: runGet,
 }
 
+func init() {
+	getCmd.Flags().BoolVar(&flagShow, "show", false, "reveal the password in the output")
+}
+
 func runGet(cmd *cobra.Command, args []string) error {
-	name := args[0]
+	label := args[0]
 	v, err := loadVault()
 	if err != nil {
 		return formatError(err)
 	}
-	value, err := v.Get(name)
+	entry, err := v.Get(label)
 	if err != nil {
-		if errors.Is(err, vault.ErrKeyNotFound) {
-			return fmt.Errorf("key not found: %s", name)
+		if errors.Is(err, vault.ErrEntryNotFound) {
+			return fmt.Errorf("entry not found: %s", label)
 		}
 		return err
 	}
-	// Print plain value to stdout — never decorate this output.
-	fmt.Fprint(cmd.OutOrStdout(), value)
-	// Trailing newline is convenient for humans; subshells trim it.
-	fmt.Fprintln(cmd.OutOrStdout())
+
+	updated := entry.UpdatedAt.Local().Format("2006-01-02 15:04")
+	card := ui.RenderEntryCard(
+		entry.Label, entry.Username, entry.Password,
+		entry.URL, entry.Notes, updated, flagShow,
+	)
+	fmt.Fprintln(os.Stderr, card)
 	return nil
 }

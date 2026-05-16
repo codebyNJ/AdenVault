@@ -11,26 +11,22 @@ import (
 )
 
 var rmCmd = &cobra.Command{
-	Use:     "rm <KEY>",
-	Aliases: []string{"remove", "delete", "del", "unset"},
-	Short:   "delete a secret from the vault",
+	Use:     "rm <label>",
+	Aliases: []string{"remove", "delete", "del", "d"},
+	Short:   "delete an entry from the vault",
 	Args:    cobra.ExactArgs(1),
 	RunE:    runRm,
 }
 
 func runRm(cmd *cobra.Command, args []string) error {
-	name := args[0]
-
+	label := args[0]
 	v, err := loadVault()
 	if err != nil {
 		return formatError(err)
 	}
 
-	// In a real TTY, double-check before destroying a secret. In a
-	// non-interactive session (--password-stdin, CI) the user has
-	// explicitly opted into a no-prompt flow, so we proceed.
 	if ui.IsInteractive() && !flagPasswordStdin {
-		ok, err := ui.Confirm(fmt.Sprintf("delete %s from %s vault?", name, flagEnv), false)
+		ok, err := ui.Confirm(fmt.Sprintf("permanently delete %q from %s vault?", label, flagEnv), false)
 		if err != nil {
 			return formatError(err)
 		}
@@ -40,15 +36,15 @@ func runRm(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if err := v.Delete(name); err != nil {
-		if errors.Is(err, vault.ErrKeyNotFound) {
-			return fmt.Errorf("key not found: %s", name)
+	if err := v.Delete(label); err != nil {
+		if errors.Is(err, vault.ErrEntryNotFound) {
+			return fmt.Errorf("entry not found: %s", label)
 		}
 		return err
 	}
 	if err := v.Save(); err != nil {
 		return err
 	}
-	success(fmt.Sprintf("%s removed", name))
+	success(fmt.Sprintf("%s deleted", label))
 	return nil
 }

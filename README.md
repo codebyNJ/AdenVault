@@ -7,52 +7,51 @@
 ╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═══╝  ╚═══╝
 ```
 
-> **adenVault** — a vault that lives in your home directory, not in someone else's cloud.
+> **adenVault** — your offline password manager. no cloud. no subscription. no breach.
 
 ```sh
-adenV init
-adenV set STRIPE_KEY sk_live_xxx
-adenV run -- npm start
+adenV add github        # interactive form — username, password, url, notes
+adenV copy github       # password silently in your clipboard
+adenV get github --show # reveal the full entry
+adenV list              # see everything in one glance
 ```
 
-That's the whole product. No account, no dashboard, no monthly seat. Just one binary, one master password, and a sealed file your editor can't read.
+One binary. One master password. Your passwords live on your machine and nowhere else.
 
 ---
 
 ## what is adenVault?
 
-adenVault is a single-binary, password-locked safe for the API keys, database URLs, and access tokens that pile up on every developer's laptop.
+adenVault is a **personal CLI password manager** — the terminal-native alternative to 1Password, Bitwarden, or LastPass for people who live in the command line.
 
-- **per-project** — each repo gets its own vault, auto-discovered from the git remote so renaming the folder doesn't orphan your secrets
-- **encrypted before it touches disk** — every value is sealed with AES-256-GCM under a fresh nonce; the key is derived from your master password via Argon2id (64 MiB, brute-force-hostile)
-- **never on disk in plaintext** — only key names and a 16-byte random salt live in the clear; your password lives in process memory for milliseconds, then disappears
-- **invisible to git** — the vault lives in `~/.aden/<project>/`, nowhere near your repo. There is nothing for `git add .` to grab
-- **offline by design** — the binary makes zero network calls. No telemetry, no auto-updates, no "phone home". Verify with `strings` if you want
-- **scriptable** — `adenV get KEY` writes only the value to stdout, so `$(adenV get DB_URL)` works in any shell
+You give each entry a label you'll remember (`github`, `gmail`, `aws-root`). adenVault stores a **username**, a **password**, an optional **URL**, and optional **notes** — all individually encrypted with AES-256-GCM before they ever touch your disk. Your master password is never stored; it's typed once per session to unlock the vault, then gone.
 
-You invoke it as `adenV`. The project, the docs, the brand: **adenVault**.
+- **stores passwords, not just env vars** — first-class username + password + url + notes per entry
+- **copy without revealing** — `adenV copy github` puts the password in your clipboard, never on screen
+- **masked by default** — `adenV get` shows `•••••••••` until you pass `--show`
+- **no internet, ever** — the binary makes zero network calls; there is nothing to breach remotely
+- **one binary** — no daemon, no browser extension, no electron app, no background process
+- **per-vault, per-environment** — separate vaults for personal / work / prod via `--env`
 
 ---
 
-## why you need it
+## why adenVault?
 
-If any of these sound familiar, adenVault is built for you:
+1Password costs $36/year. Bitwarden has a great free tier but still needs an account, an internet connection, and trust in their servers. KeePass needs a GUI. `pass` is Unix-only and needs GPG set up.
 
-- you've pushed a `.env` to a public repo and spent the rest of the day rotating keys
-- your `~/.zshrc` has ten years of `export STRIPE_KEY=...` lines you're afraid to delete
-- you've shared an API key over Slack DM because Doppler felt like overkill for a side project
-- you've copy-pasted a token from 1Password into a terminal that quietly logged it to `~/.bash_history`
-- you have three `.env.example`, `.env.local`, `.env.dev` files and no idea which one is real
+adenVault is for the person who wants **none of that overhead**:
 
-adenVault replaces all of these habits with one binary. The right thing — encrypted secrets, per project, with no plaintext on disk — becomes the easy thing. `adenV set` and `adenV run --` are the only verbs you need.
+- no account to create
+- no server to trust
+- no master password stored anywhere but your head
+- no internet connection needed — works on a plane, in a Faraday cage, after the zombie apocalypse
+- no GUI — just a terminal and one fast binary
 
-**Anti-goals.** adenVault is not Doppler, not HashiCorp Vault, not AWS Secrets Manager. There is no team sync, no audit log, no rotation policy, no UI. It is a one-developer, one-laptop tool. If you outgrow it you can `adenV export > .env` and move on. No lock-in.
+If your passwords ever leak from adenVault, an attacker got into your machine and also knew your master password. That's the threat model, and it's the same one you accept with every offline password manager.
 
 ---
 
 ## how to install
-
-You need **Go 1.24+** to build from source. Pre-built binaries can be cross-compiled with `make release`.
 
 ### macOS / Linux — one-liner
 
@@ -60,139 +59,189 @@ You need **Go 1.24+** to build from source. Pre-built binaries can be cross-comp
 curl -fsSL https://raw.githubusercontent.com/codebyNJ/AdenVault/main/install.sh | bash
 ```
 
-The script detects your OS and architecture, downloads the right binary from the latest GitHub release, installs it to `/usr/local/bin/adenV` (or `~/.local/bin/adenV` if `/usr/local/bin` isn't writable), and prints a confirmation. No Go needed.
+Detects your OS and architecture, downloads the right binary from the latest GitHub release, installs to `/usr/local/bin/adenV` (or `~/.local/bin` if not writable). No Go needed.
 
-To pin a specific version:
+Pin to a specific version:
 
 ```sh
 ADENV_VERSION=v1.0.0 curl -fsSL https://raw.githubusercontent.com/codebyNJ/AdenVault/main/install.sh | bash
 ```
 
-To change the install directory:
-
-```sh
-ADENV_INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/codebyNJ/AdenVault/main/install.sh | bash
-```
-
-If you'd rather inspect the script before running it (good habit):
+Want to inspect the script before running it?
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/codebyNJ/AdenVault/main/install.sh -o install.sh
-less install.sh          # read it
-bash install.sh          # run it
+less install.sh && bash install.sh
 ```
 
-### macOS / Linux — from source (needs Go 1.24+)
-
-```sh
-git clone https://github.com/codebyNJ/AdenVault.git
-cd AdenVault
-sudo make install       # builds bin/adenV → /usr/local/bin/adenV
-```
-
-### Windows (PowerShell — one-liner)
+### Windows — one-liner (PowerShell)
 
 ```powershell
 irm https://raw.githubusercontent.com/codebyNJ/AdenVault/main/install.ps1 | iex
 ```
 
-Downloads and runs the install script — drops `adenV.exe` into `$env:USERPROFILE\.adenV\bin`, permanently adds it to your user `PATH`. Open a new terminal and you're done. No Go needed.
+Downloads `adenV.exe` into `$env:USERPROFILE\.adenV\bin`, permanently adds it to your user `PATH`. Open a new terminal and type `adenV --version`.
 
-If you'd rather build from source:
-
-```powershell
-git clone https://github.com/codebyNJ/AdenVault.git
-Set-Location AdenVault
-go build -ldflags "-s -w" -o adenV.exe .
-New-Item -ItemType Directory -Force "$env:USERPROFILE\.adenV\bin" | Out-Null
-Move-Item .\adenV.exe "$env:USERPROFILE\.adenV\bin\adenV.exe"
-# add $env:USERPROFILE\.adenV\bin to your PATH if not already there
-```
-
-### cross-compile release binaries
+### build from source (Go 1.24+)
 
 ```sh
-make release   # produces dist/adenV-{darwin,linux}-{amd64,arm64}
+git clone https://github.com/codebyNJ/AdenVault.git
+cd AdenVault
+sudo make install    # → /usr/local/bin/adenV
 ```
 
-Upload the artefacts to a GitHub release and both install scripts will pick them up automatically.
-
-### verify it worked
+### verify
 
 ```sh
 adenV --version
-adenV --help
+adenV              # shows the splash with your current vault status
 ```
-
-Bare `adenV` (no subcommand) shows a gradient splash with your current project's vault status — handy as a "where am I" command.
 
 ---
 
 ## the commands
 
-Every command has short and long forms. Use whichever fits the flow — `adenV s API_KEY abc` and `adenV set API_KEY abc` do the same thing.
-
-| primary | aliases | what it does |
+| command | aliases | what it does |
 |---|---|---|
-| `adenV init` | `i`, `new`, `create` | seal a fresh vault for the current project, prompts for a master password twice |
-| `adenV set KEY VALUE` | `s`, `add`, `put`, `save` | encrypt and store a secret |
-| `adenV get KEY` | `g`, `show`, `cat`, `read` | decrypt and print one value to stdout (no decoration — safe in `$(...)`) |
-| `adenV list` | `ls`, `l`, `keys` | list secret names + last-updated timestamps — **no password required** |
-| `adenV rm KEY` | `remove`, `delete`, `del`, `unset` | delete a secret |
-| `adenV export` | `e`, `dump`, `env` | print all secrets as `KEY=value` lines, designed to be `> .env` redirected |
-| `adenV run -- CMD` | `r`, `exec`, `x` | run a command with secrets injected as env vars; exit code is forwarded |
+| `adenV init` | `i`, `new`, `create` | create a new vault, prompts for a master password |
+| `adenV add <label>` | `a`, `new`, `set`, `save` | interactive form: username, password, url, notes |
+| `adenV get <label>` | `g`, `show`, `view`, `open` | display an entry — password masked by default |
+| `adenV copy <label>` | `cp`, `c`, `yank` | copy password to clipboard without displaying it |
+| `adenV list` | `ls`, `l`, `all` | list all entry labels + field indicators, no password needed |
+| `adenV rm <label>` | `remove`, `delete`, `del`, `d` | permanently delete an entry |
+| `adenV export` | `e`, `dump` | print `LABEL=password` lines to stdout |
+| `adenV run -- CMD` | `r`, `exec`, `x` | run a command with passwords injected as env vars |
+
+### `adenV add` in detail
+
+Run with just a label to get a beautiful interactive form:
+
+```
+adenV add github
+```
+
+```
+  new entry: github
+
+  username   ▏john@example.com
+  password   ▏••••••••••••
+  url        ▏https://github.com
+  notes      ▏work account
+
+  tab/↓ next  ·  shift+tab/↑ prev  ·  ctrl+s save  ·  esc cancel
+```
+
+Or skip the form with flags:
+
+```sh
+adenV add github --user john@example.com --pass mysecret --url https://github.com
+adenV add github --user john@example.com --pass mysecret --note "2FA on phone"
+```
+
+Run `adenV add github` again on an existing entry to edit it — the form pre-fills with the current values.
+
+### `adenV get` in detail
+
+```
+adenV get github           # password shown as ••••••••••
+adenV get github --show    # password revealed in the card
+```
+
+```
+  ╭────────────────────────────────╮
+  │ github                         │
+  │                                │
+  │ username  john@example.com     │
+  │ password  sk_live_...          │
+  │ url       https://github.com   │
+  │ updated   2026-05-16 15:49     │
+  ╰────────────────────────────────╯
+```
+
+### `adenV copy` in detail
+
+```sh
+adenV copy github           # copies the password
+adenV copy github --user    # copies the username instead
+```
+
+The value goes directly to your clipboard. Nothing is printed to the terminal — safe even with screen-sharing active.
+
+### `adenV list` in detail
+
+```
+  LABEL      FIELDS   UPDATED
+  ─────────────────────────────────
+  github     uw·      2026-05-16 15:49
+  gmail      u··      2026-05-16 10:00
+  netflix    u·n      2026-05-15 09:00
+
+  3 entries in dev vault
+  icons: username  website  notes
+```
+
+The field indicators show at a glance what each entry contains: `u` username, `w` website/url, `n` notes. No password is needed to list.
 
 ### global flags
 
 | flag | default | what it does |
 |---|---|---|
-| `--env <name>` | `dev` | which environment vault to use — `dev`, `staging`, `prod`, anything you want. Each env has its own encryption key |
-| `--vault-dir <path>` | `~/.aden` | override the vault root (useful if you sync via encrypted Dropbox or 1Password vault attachments) |
-| `--password-stdin` | off | read the master password from stdin instead of prompting. **The CI escape hatch** |
-| `--quiet` | off | suppress decoration and status output. `list` prints bare names to stdout in this mode — perfect for scripting |
+| `--env <name>` | `dev` | use a different vault (`work`, `personal`, `prod`, anything). Each env has its own encryption key |
+| `--vault-dir <path>` | `~/.aden` | store the vault somewhere else — useful for syncing via encrypted cloud storage |
+| `--password-stdin` | off | read the master password from stdin; for CI or scripts |
+| `--quiet` | off | suppress decoration; `list` prints bare labels to stdout |
 
-### a day in the life
+---
 
-```sh
-# day 0: one-time setup
-adenV init                                  # asks for a master password
-adenV s DB_URL postgres://localhost/mydb    # store
-adenV s STRIPE_KEY sk_live_xxxxxxxxxxxx     # store another
+## security
 
-# day n: actually working
-adenV l                                     # what's in here again?
-adenV g STRIPE_KEY | pbcopy                 # copy to clipboard, no plaintext lingering
-adenV x -- npm start                        # run your app with secrets in env
+adenVault protects your passwords with the same primitives cloud password managers use — the difference is the vault file never leaves your machine.
 
-# a different environment
-adenV --env prod s STRIPE_KEY sk_live_PROD_xxx
-adenV --env prod x -- ./deploy.sh
+| what | how |
+|---|---|
+| encryption | AES-256-GCM per field — username, password, url, and notes are encrypted individually |
+| key derivation | Argon2id (`time=1, mem=64 MiB, threads=4`) — brute-force hostile |
+| master password | never written to disk, ever — lives in memory for milliseconds |
+| nonce | fresh random 12-byte nonce per encryption — no nonce reuse possible |
+| wrong password | returns the same error as a tampered file — no oracle attack surface |
+| file permissions | vault written as `0600` — only your user can read it |
+| network | zero calls — the binary doesn't know what TCP is |
+
+**what it protects against:** accidental exposure, stolen disks, reading your vault file without the master password, shoulder-surfing (masked by default).
+
+**what it doesn't protect against:** a compromised machine where an attacker can read your process memory, a keylogger on your keyboard.
+
+---
+
+## the vault file
+
+Vaults live at `~/.aden/<vault>-<id>/vault.<env>.json`. They're just JSON — you can read them, back them up, sync them with syncthing or an encrypted Dropbox. Without the master password the values are meaningless ciphertext.
+
+```json
+{
+  "version": 2,
+  "entries": {
+    "github": {
+      "username":  { "nonce": "...", "ciphertext": "..." },
+      "password":  { "nonce": "...", "ciphertext": "..." },
+      "url":       { "nonce": "...", "ciphertext": "..." },
+      "created_at": "2026-05-16T15:49:00Z",
+      "updated_at": "2026-05-16T15:49:00Z"
+    }
+  }
+}
 ```
 
-### in CI
-
-CI has no TTY, so you can't be prompted. Use `--password-stdin` and store your master password as a CI secret:
-
-```yaml
-# GitHub Actions
-- name: deploy
-  env:
-    ADEN_MASTER: ${{ secrets.ADEN_MASTER }}
-  run: |
-    echo "$ADEN_MASTER" | adenV --password-stdin --env prod export > .env
-    ./deploy.sh
-```
+Entry labels are plaintext so `adenV list` works without a password. Every value is encrypted.
 
 ---
 
 ## one more thing
 
-The vault file is just JSON. You can read it, copy it, sync it, back it up. Without your master password, nobody — including you — can recover the values from it. So pick a good one, and put it in your password manager.
-
-That's the whole tool.
+If you forget your master password, the vault is unrecoverable — by design. Put the master password in a place you actually trust: a physical notebook, a trusted password manager, a note printed and locked in a drawer. That's the tradeoff for "no cloud".
 
 ---
 
 **source** — [github.com/codebyNJ/AdenVault](https://github.com/codebyNJ/AdenVault)
 **releases** — [github.com/codebyNJ/AdenVault/releases](https://github.com/codebyNJ/AdenVault/releases)
-**release notes** — see `RELEASE_NOTES.md`
+**release notes** — `RELEASE_NOTES.md`
