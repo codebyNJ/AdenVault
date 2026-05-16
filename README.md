@@ -54,41 +54,68 @@ adenVault replaces all of these habits with one binary. The right thing — encr
 
 You need **Go 1.24+** to build from source. Pre-built binaries can be cross-compiled with `make release`.
 
-### macOS / Linux (one-liner with Make)
+### macOS / Linux — one-liner
 
 ```sh
-git clone https://github.com/your-org/aden-vault.git
-cd aden-vault
+curl -fsSL https://raw.githubusercontent.com/codebyNJ/AdenVault/main/install.sh | bash
+```
+
+The script detects your OS and architecture, downloads the right binary from the latest GitHub release, installs it to `/usr/local/bin/adenV` (or `~/.local/bin/adenV` if `/usr/local/bin` isn't writable), and prints a confirmation. No Go needed.
+
+To pin a specific version:
+
+```sh
+ADENV_VERSION=v1.0.0 curl -fsSL https://raw.githubusercontent.com/codebyNJ/AdenVault/main/install.sh | bash
+```
+
+To change the install directory:
+
+```sh
+ADENV_INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/codebyNJ/AdenVault/main/install.sh | bash
+```
+
+If you'd rather inspect the script before running it (good habit):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/codebyNJ/AdenVault/main/install.sh -o install.sh
+less install.sh          # read it
+bash install.sh          # run it
+```
+
+### macOS / Linux — from source (needs Go 1.24+)
+
+```sh
+git clone https://github.com/codebyNJ/AdenVault.git
+cd AdenVault
 sudo make install       # builds bin/adenV → /usr/local/bin/adenV
 ```
 
-### macOS / Linux (manual)
-
-```sh
-git clone https://github.com/your-org/aden-vault.git
-cd aden-vault
-go build -ldflags "-s -w" -o adenV .
-sudo mv adenV /usr/local/bin/
-```
-
-### Windows (PowerShell)
+### Windows (PowerShell — one-liner)
 
 ```powershell
-git clone https://github.com/your-org/aden-vault.git
-Set-Location aden-vault
-go build -ldflags "-s -w" -o adenV.exe .
-# put it somewhere on your PATH
-New-Item -ItemType Directory -Force "$env:USERPROFILE\bin" | Out-Null
-Move-Item .\adenV.exe "$env:USERPROFILE\bin\adenV.exe"
+irm https://raw.githubusercontent.com/codebyNJ/AdenVault/main/install.ps1 | iex
 ```
 
-Then add `$env:USERPROFILE\bin` to your `PATH` if it isn't already.
+Downloads and runs the install script — drops `adenV.exe` into `$env:USERPROFILE\.adenV\bin`, permanently adds it to your user `PATH`. Open a new terminal and you're done. No Go needed.
+
+If you'd rather build from source:
+
+```powershell
+git clone https://github.com/codebyNJ/AdenVault.git
+Set-Location AdenVault
+go build -ldflags "-s -w" -o adenV.exe .
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.adenV\bin" | Out-Null
+Move-Item .\adenV.exe "$env:USERPROFILE\.adenV\bin\adenV.exe"
+# add $env:USERPROFILE\.adenV\bin to your PATH if not already there
+```
 
 ### cross-compile release binaries
 
 ```sh
 make release   # produces dist/adenV-{darwin,linux}-{amd64,arm64}
 ```
+
+Upload the artefacts to a GitHub release and both install scripts will pick them up automatically.
 
 ### verify it worked
 
@@ -163,3 +190,9 @@ CI has no TTY, so you can't be prompted. Use `--password-stdin` and store your m
 The vault file is just JSON. You can read it, copy it, sync it, back it up. Without your master password, nobody — including you — can recover the values from it. So pick a good one, and put it in your password manager.
 
 That's the whole tool.
+
+---
+
+**source** — [github.com/codebyNJ/AdenVault](https://github.com/codebyNJ/AdenVault)
+**releases** — [github.com/codebyNJ/AdenVault/releases](https://github.com/codebyNJ/AdenVault/releases)
+**release notes** — see `RELEASE_NOTES.md`
