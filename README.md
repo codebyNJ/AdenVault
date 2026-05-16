@@ -1,13 +1,9 @@
-```
- █████╗ ██████╗ ███████╗███╗   ██╗██╗   ██╗
-██╔══██╗██╔══██╗██╔════╝████╗  ██║██║   ██║
-███████║██║  ██║█████╗  ██╔██╗ ██║██║   ██║
-██╔══██║██║  ██║██╔══╝  ██║╚██╗██║╚██╗ ██╔╝
-██║  ██║██████╔╝███████╗██║ ╚████║ ╚████╔╝
-╚═╝  ╚═╝╚═════╝ ╚══════╝╚═╝  ╚═══╝  ╚═══╝
-```
+<img width="3780" height="1890" alt="ADEN VAULT" src="https://github.com/user-attachments/assets/5454c340-0b0d-4e58-a8a3-f143143fda4c" />
 
-> **adenVault** — your offline password manager. no cloud. no subscription. no breach.
+
+
+
+
 
 ```sh
 adenV add github        # interactive form — username, password, url, notes
